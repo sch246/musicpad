@@ -110,14 +110,14 @@ class GlobalSettings(QWidget):
         second_row = QWidget()
         second_layout = QHBoxLayout(second_row)
         second_layout.setContentsMargins(0, 0, 0, 0)
-        
+
         self.device_combo = QComboBox()
         self.update_audio_devices()
-        
+
         second_layout.addWidget(QLabel("音频设备:"))
         second_layout.addWidget(self.device_combo)
         second_layout.addStretch()
-        
+
 
 
         frame_layout.addWidget(first_row)
@@ -282,6 +282,8 @@ class AudioTrack:
                 self.play()
 
     def toggle(self):
+        if not self.sound:
+            return
         self.cleanup_channels()
         if self.is_active():
             self.stop()
@@ -291,6 +293,8 @@ class AudioTrack:
             self.play()
 
     def toggle_pause(self):
+        if not self.sound:
+            return
         if not self.is_active():
             if not self.is_playing:
                 # 新开始播放
@@ -372,6 +376,7 @@ from pathlib import Path
 
 class AudioTrackWidget(QFrame):
     select_sign = pyqtSignal(bool)  # 选中信号
+    tracks_layout: QVBoxLayout
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -513,11 +518,20 @@ class AudioTrackWidget(QFrame):
             "background-color: #2ecc71;"
         )
 
-    def toggle(self, evt: QMouseEvent):
-        if evt.button() == Qt.MouseButton.LeftButton:
+    def toggle(self, evt: QMouseEvent = None):
+
+        is_active = self.audio_track.is_active()
+        if not is_active and self.mute_others_check.isChecked():
+            for i in range(self.tracks_layout.count() - 1):
+                widget = self.tracks_layout.itemAt(i).widget()
+                if widget != self:
+                    widget.audio_track.stop()
+        if evt is None:
             self.audio_track.toggle()
-        elif evt.button() == Qt.MouseButton.RightButton:
+        elif evt.button() == Qt.MouseButton.LeftButton:
             self.audio_track.toggle_pause()
+        elif evt.button() == Qt.MouseButton.RightButton:
+            self.audio_track.stop()
 
     def toggle_expand(self):
         self.is_expanded = not self.is_expanded
@@ -639,6 +653,7 @@ class TracksContainer(QScrollArea):
         track_widget = AudioTrackWidget()
         track_widget.select_sign.connect(lambda checked: self.handle_track_selection(track_widget, checked))
         self.tracks_layout.insertWidget(self.tracks_layout.count() - 1, track_widget)
+        track_widget.tracks_layout = self.tracks_layout
         self.update_tab_order()  # 添加这行
         return track_widget
 
@@ -711,7 +726,7 @@ class TracksContainer(QScrollArea):
             self.move_track(current_index, current_index + 1)
 
         elif event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
-            self.selected_track.audio_track.toggle()
+            self.selected_track.toggle()
 
 
 
@@ -913,11 +928,11 @@ class AudioPlayer(QMainWindow):
         # 创建菜单栏
         menubar = self.menuBar()# 创建帮助菜单
         help_menu = menubar.addMenu('帮助')
-        
+
         # 创建关于动作
         about_action = help_menu.addAction('关于')
         about_action.triggered.connect(self.show_about_dialog)
-        
+
         # 创建使用说明动作
         manual_action = help_menu.addAction('使用说明')
         manual_action.triggered.connect(self.show_manual_dialog)
@@ -948,8 +963,9 @@ class AudioPlayer(QMainWindow):
             <tr><td>tab 和 shift+tab</td><td>切换选择</td></tr>
             <tr><td>上下方向键</td><td>移动音轨</td></tr>
             <tr><td>Delete</td><td>删除音轨</td></tr>
-            <tr><td>左键方块/Enter</td><td>播放/停止</td></tr>
-            <tr><td>右键方块</td><td>暂停/继续</td></tr>
+            <tr><td>Enter</td><td>播放/停止</td></tr>
+            <tr><td>左键方块</td><td>播放/暂停/继续</td></tr>
+            <tr><td>右键方块</td><td>停止</td></tr>
             <tr><td>双击名称</td><td>选择音频</td></tr>
             <tr><td>Space</td><td>展开/折叠</td></tr>
         </table>
