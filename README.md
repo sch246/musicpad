@@ -4,6 +4,8 @@
 
 建议配合 VoiceMetter 使用 （
 
+![image.png](https://s2.loli.net/2025/01/01/cYLNpfuKIa4VstJ.png)
+
 ## 功能特点
 
 - 支持多种音频格式 (mp3, wav, ogg, flac)
