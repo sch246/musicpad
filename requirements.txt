@@ -1,0 +1,4 @@
+keyboard>=0.13.5
+pygame>=2.5.0
+PyQt6>=6.0.0
+PyYAML>=6.0.1
