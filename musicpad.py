@@ -308,7 +308,6 @@ class AudioTrack:
                 self.pause()
 
     def play(self):
-        print(f'play: {self.loop}')
         channel = self.sound.play(loops=-1 if self.loop else 0)
         self.channels.append(channel)
         self.is_playing = True
