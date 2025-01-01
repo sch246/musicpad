@@ -308,6 +308,7 @@ class AudioTrack:
                 self.pause()
 
     def play(self):
+        print(f'play: {self.loop}')
         channel = self.sound.play(loops=-1 if self.loop else 0)
         self.channels.append(channel)
         self.is_playing = True
@@ -503,6 +504,7 @@ class AudioTrackWidget(QFrame):
         self.volume_input.valueChanged.connect(self.volume_slider.setValue)
         self.volume_slider.valueChanged.connect(self.on_volume_changed)
         self.mode_combo.currentTextChanged.connect(self.on_mode_changed)
+        self.loop_check.stateChanged.connect(self.on_loop_changed)
         self.name_label.mouseDoubleClickEvent = self.on_name_double_click
 
     def check_channels_status(self):
@@ -577,6 +579,9 @@ class AudioTrackWidget(QFrame):
     def on_mode_changed(self, mode_text):
         self.audio_track.mode = mode_text
 
+    def on_loop_changed(self, state):
+        self.audio_track.loop = state == Qt.CheckState.Checked
+
     def on_name_double_click(self, event):
         file_path, _ = QFileDialog.getOpenFileName(
             self,
@@ -605,6 +610,7 @@ class AudioTrackWidget(QFrame):
         self.shortcut_catcher.current_shortcut = settings.get("shortcut", "")
         self.mode_combo.setCurrentText(settings.get("mode", STOP))
         self.loop_check.setChecked(settings.get("loop", False))
+        self.audio_track.loop = settings.get("loop", False)
         self.mute_others_check.setChecked(settings.get("mute_others", False))
 
 class TracksContainer(QScrollArea):
