@@ -215,7 +215,7 @@ class AudioTrack:
     def __init__(self):
         self.sound = None
         self.channels: list[Channel] = []
-        self.volume = 1.0
+        self.volume = 0
         self.is_playing = False
         self.is_paused = False
         self.loop = False
@@ -241,7 +241,7 @@ class AudioTrack:
             return False
 
     def toggle_play(self, is_hold_mode: bool, is_key_down: bool):
-        """播放音频"""
+        """按状态播放音频"""
         if not self.sound:
             return
 
@@ -281,7 +281,8 @@ class AudioTrack:
             if should_start:
                 self.play()
 
-    def toggle(self):
+    def toggle_stop(self):
+        '''播放/停止'''
         if not self.sound:
             return
         self.cleanup_channels()
@@ -293,6 +294,7 @@ class AudioTrack:
             self.play()
 
     def toggle_pause(self):
+        '''播放/暂停/继续'''
         if not self.sound:
             return
         if not self.is_active():
@@ -322,19 +324,22 @@ class AudioTrack:
         self.is_paused = False
 
     def pause(self):
+        '''暂停播放'''
         for channel in self.channels:
             channel.pause()
         self.is_paused = True
 
     def unpause(self):
+        '''继续播放'''
         for channel in self.channels:
             channel.unpause()
         self.is_paused = False
         self.is_playing = True
 
-    def set_volume(self, volume):
-        """设置音量 (0.0 to 1.0)"""
-        self.volume = max(0.0, min(1.0, volume / 100.0))
+    def set_volume(self, db):
+        """设置音量 (db)"""
+        self.volume = max(-60, min(0, db))  # 限制在 -60dB 到 0dB 之间
+        self.volume = pow(10, self.volume / 20.0)
         if self.sound:
             self.sound.set_volume(self.volume)
 
@@ -376,6 +381,7 @@ from pathlib import Path
 
 class AudioTrackWidget(QFrame):
     select_sign = pyqtSignal(bool)  # 选中信号
+    focus_expand_sign = pyqtSignal()  # '折叠其它'信号
     tracks_layout: QVBoxLayout
 
     def __init__(self, parent=None):
@@ -434,9 +440,9 @@ class AudioTrackWidget(QFrame):
         # 快捷键和展开按钮固定宽度，右对齐
         self.shortcut_catcher = ShortcutCatcher()
         self.shortcut_catcher.setFixedWidth(150)
-        self.expand_btn = QPushButton("...")
-        self.expand_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        self.expand_btn.setFixedWidth(30)
+        # self.expand_btn = QPushButton("...")
+        # self.expand_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        # self.expand_btn.setFixedWidth(30)
 
         # 删除按钮
         self.delete_btn = QPushButton("X")
@@ -455,18 +461,19 @@ class AudioTrackWidget(QFrame):
         first_row.addWidget(self.status_indicator)
         first_row.addWidget(self.name_label)
         first_row.addWidget(self.shortcut_catcher)
-        first_row.addWidget(self.expand_btn)
+        # first_row.addWidget(self.expand_btn)
         first_row.addWidget(self.delete_btn)
 
         # 第二行（展开时显示）
         volume_row = QHBoxLayout()
         self.volume_slider = QSlider(Qt.Orientation.Horizontal)
-        self.volume_slider.setRange(0, 100)
-        self.volume_slider.setValue(100)
+        self.volume_slider.setRange(-60, 0)
+        self.volume_slider.setValue(0)
         self.volume_input = QSpinBox()
-        self.volume_input.setRange(0, 100)
-        self.volume_input.setValue(100)
-        self.volume_input.setFixedWidth(50)
+        self.volume_input.setRange(-60, 0)
+        self.volume_input.setValue(0)
+        self.volume_input.setFixedWidth(60)
+        self.volume_input.setSuffix(" dB")
         volume_row.addWidget(QLabel("音量:"))
         volume_row.addWidget(self.volume_slider)
         volume_row.addWidget(self.volume_input)
@@ -496,8 +503,8 @@ class AudioTrackWidget(QFrame):
         self.setup_connections()
 
     def setup_connections(self):
-        self.status_indicator.mousePressEvent = self.toggle
-        self.expand_btn.clicked.connect(self.toggle_expand)
+        self.status_indicator.mousePressEvent = self.toggle_status
+        # self.expand_btn.clicked.connect(self.toggle_expand)
         self.delete_btn.clicked.connect(self.deleteLater)
         self.volume_slider.valueChanged.connect(self.volume_input.setValue)
         self.volume_input.valueChanged.connect(self.volume_slider.setValue)
@@ -519,19 +526,19 @@ class AudioTrackWidget(QFrame):
             "background-color: #2ecc71;"
         )
 
-    def toggle(self, evt: QMouseEvent = None):
-
+    def toggle_status(self, event: QMouseEvent = None):
+        '''切换播放状态'''
         is_active = self.audio_track.is_active()
         if not is_active and self.mute_others_check.isChecked():
             for i in range(self.tracks_layout.count() - 1):
                 widget = self.tracks_layout.itemAt(i).widget()
                 if widget != self:
                     widget.audio_track.stop()
-        if evt is None:
-            self.audio_track.toggle()
-        elif evt.button() == Qt.MouseButton.LeftButton:
+        if event is None:
+            self.audio_track.toggle_stop()
+        elif event.button() == Qt.MouseButton.LeftButton:
             self.audio_track.toggle_pause()
-        elif evt.button() == Qt.MouseButton.RightButton:
+        elif event.button() == Qt.MouseButton.RightButton:
             self.audio_track.stop()
 
     def toggle_expand(self):
@@ -541,6 +548,12 @@ class AudioTrackWidget(QFrame):
     def focusInEvent(self, event):
         super().focusInEvent(event)
         self.select_sign.emit(True)
+
+    def mousePressEvent(self, event):
+        '''右键点击展开'''
+        super().mousePressEvent(event)
+        if event.button() == Qt.MouseButton.RightButton:
+            self.toggle_expand()
 
     def set_selected(self, selected):
         self.is_selected = selected
@@ -582,14 +595,18 @@ class AudioTrackWidget(QFrame):
         self.audio_track.loop = state == Qt.CheckState.Checked
 
     def on_name_double_click(self, event):
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "选择音频文件",
-            "",
-            "音频文件 (*.mp3 *.wav *.ogg *.flac);;所有文件 (*.*)"
-        )
-        if file_path:
-            self.set_file(file_path)
+        '''双击选择文件，双击右键时聚焦展开'''
+        if event.button() == Qt.MouseButton.LeftButton:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "选择音频文件",
+                "",
+                "音频文件 (*.mp3 *.wav *.ogg *.flac);;所有文件 (*.*)"
+            )
+            if file_path:
+                self.set_file(file_path)
+        elif event.button() == Qt.MouseButton.RightButton:
+            self.focus_expand_sign.emit()
 
     def get_settings(self):
         return {
@@ -657,6 +674,7 @@ class TracksContainer(QScrollArea):
         # 在按钮之前添加新音轨
         track_widget = AudioTrackWidget()
         track_widget.select_sign.connect(lambda checked: self.handle_track_selection(track_widget, checked))
+        track_widget.focus_expand_sign.connect(lambda: self.handle_focus_expand(track_widget))
         self.tracks_layout.insertWidget(self.tracks_layout.count() - 1, track_widget)
         track_widget.tracks_layout = self.tracks_layout
         self.update_tab_order()  # 添加这行
@@ -697,6 +715,14 @@ class TracksContainer(QScrollArea):
         else:
             self.selected_track = None
 
+    def handle_focus_expand(self, widget):
+        for i in range(self.tracks_layout.count() - 1):
+            track = self.tracks_layout.itemAt(i).widget()
+            if track != widget and track.is_expanded:
+                track.toggle_expand()
+            elif track is widget and not track.is_expanded:
+                track.toggle_expand()
+
     def keyPressEvent(self, event):
         if not self.selected_track:
             return
@@ -731,7 +757,7 @@ class TracksContainer(QScrollArea):
             self.move_track(current_index, current_index + 1)
 
         elif event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
-            self.selected_track.toggle()
+            self.selected_track.toggle_status()
 
 
 
@@ -972,7 +998,8 @@ class AudioPlayer(QMainWindow):
             <tr><td>左键方块</td><td>播放/暂停/继续</td></tr>
             <tr><td>右键方块</td><td>停止</td></tr>
             <tr><td>双击名称</td><td>选择音频</td></tr>
-            <tr><td>Space</td><td>展开/折叠</td></tr>
+            <tr><td>右键/Space</td><td>展开/折叠</td></tr>
+            <tr><td>双击右键</td><td>展开目标并折叠其它</td></tr>
         </table>
         """
         msg = QMessageBox(self)
