@@ -37,7 +37,7 @@ pip install -r requirements.txt
 在目录下运行：
 
 ```bash
-python ./musicpad.py
+python ./main.py
 ```
 
 ### 播放模式
@@ -51,7 +51,7 @@ python ./musicpad.py
 
 - 可以拖入音频文件
 - tab 和 shift+tab：切换选择
-- 上下方向键：移动音轨
+- 左键拖拽/上下方向键：移动音轨
 - Delete：删除音轨
 - Enter：播放/停止
 - 左键方块：播放/暂停/继续
