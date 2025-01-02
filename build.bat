@@ -1,0 +1,1 @@
+pyinstaller -Fw --add-data "icon.ico;." --icon=icon.ico .\main.py
